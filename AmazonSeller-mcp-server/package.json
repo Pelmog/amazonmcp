@@ -9,8 +9,11 @@
       },
       "scripts": {
         "start": "node src/index.js",
+        "start:errors-only": "node src/index.js --log-level ERROR",
+        "start:quiet": "node src/index.js --log-level WARN",
         "dev": "node --watch src/index.js",
-        "inspect": "npx -y @modelcontextprotocol/inspector node src/index.js"
+        "inspect": "npx -y @modelcontextprotocol/inspector node src/index.js",
+        "inspect:errors-only": "npx -y @modelcontextprotocol/inspector node src/index.js --log-level ERROR"
       },
       "keywords": [
         "amazon",

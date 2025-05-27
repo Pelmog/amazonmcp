@@ -7,6 +7,51 @@ The MCP server now uses file-based logging to avoid interfering with the MCP pro
 - All debug output is written to `debug.log` in the project root
 - `console.log` and `console.error` are automatically redirected to the log file
 - The server's stdout/stderr remain clean for MCP protocol communication
+- **Log levels**: Control the verbosity of logging output
+
+## Log Levels
+
+The logger supports four log levels (in order of verbosity):
+
+1. **DEBUG** (default) - Shows all messages including detailed debug information
+2. **INFO** - Shows informational messages, warnings, and errors
+3. **WARN** - Shows warnings and errors only
+4. **ERROR** - Shows only error messages
+
+## Setting Log Level
+
+### Command Line
+```bash
+# Run with errors only
+node src/index.js --log-level ERROR
+
+# Run with warnings and errors
+node src/index.js --log-level WARN
+
+# Or use the short form
+node src/index.js -l ERROR
+```
+
+### Environment Variable
+```bash
+export LOG_LEVEL=ERROR
+node src/index.js
+```
+
+### NPM Scripts
+```bash
+# Start with errors only (clean log)
+npm run start:errors-only
+
+# Start with warnings and errors
+npm run start:quiet
+
+# Regular start (all debug messages)
+npm start
+
+# Inspect with errors only
+npm run inspect:errors-only
+```
 
 ## Viewing logs
 
