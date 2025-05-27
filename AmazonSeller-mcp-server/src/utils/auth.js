@@ -89,7 +89,9 @@ import axios from 'axios';
 
       const region = process.env.SP_API_REGION || 'us-east-1';
       const service = 'execute-api';
-      const host = `sellingpartnerapi-${region}.amazon.com`;
+      // Map AWS regions to SP-API endpoint regions
+      const endpointRegion = region === 'eu-west-1' ? 'eu' : region === 'us-east-1' ? 'na' : region;
+      const host = `sellingpartnerapi-${endpointRegion}.amazon.com`;
       const datetime = new Date().toISOString().replace(/[:-]|\.\d{3}/g, '');
       const date = datetime.substring(0, 8);
 
@@ -197,7 +199,9 @@ import axios from 'axios';
         const accessToken = await getAccessToken();
         
         const region = process.env.SP_API_REGION || 'us-east-1';
-        const url = `https://sellingpartnerapi-${region}.amazon.com${path}`;
+        // Map AWS regions to SP-API endpoint regions
+        const endpointRegion = region === 'eu-west-1' ? 'eu' : region === 'us-east-1' ? 'na' : region;
+        const url = `https://sellingpartnerapi-${endpointRegion}.amazon.com${path}`;
         
         log('[DEBUG] Request URL:', url);
         
@@ -264,9 +268,11 @@ import axios from 'axios';
         logError('[ERROR] Error message:', error.message);
         logError('[ERROR] Error code:', error.code);
         logError('[ERROR] Is retryable:', isRetryableError);
+        const errorRegion = process.env.SP_API_REGION || 'us-east-1';
+        const errorEndpointRegion = errorRegion === 'eu-west-1' ? 'eu' : errorRegion === 'us-east-1' ? 'na' : errorRegion;
         logError('[ERROR] Request config:', {
           method,
-          url: `https://sellingpartnerapi-${process.env.SP_API_REGION || 'us-east-1'}.amazon.com${path}`,
+          url: `https://sellingpartnerapi-${errorEndpointRegion}.amazon.com${path}`,
           hasData: !!data,
           retryCount
         });
