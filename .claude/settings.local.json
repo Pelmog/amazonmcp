@@ -1,7 +1,19 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git submodule add:*)"
+      "Bash(git submodule add:*)",
+      "Bash(npm install)",
+      "Bash(npm start)",
+      "Bash(git submodule:*)",
+      "Bash(ls:*)",
+      "Bash(timeout:*)",
+      "Bash(echo:*)",
+      "Bash(gtimeout:*)",
+      "Bash(node:*)",
+      "Bash(rm:*)",
+      "Bash(git add:*)",
+      "Bash(git push:*)",
+      "Bash(git reset:*)"
     ],
     "deny": []
   }

@@ -25,6 +25,21 @@
         "@modelcontextprotocol/server-postgres",
         "postgresql://ziggyuser:ziggypass@localhost:5432/ziggydb"
       ]
+    },
+    "amazon-seller": {
+      "command": "npm",
+      "args": ["start"],
+      "cwd": "./AmazonSeller-mcp-server",
+      "env": {
+        "SP_API_CLIENT_ID": "${SP_API_CLIENT_ID}",
+        "SP_API_CLIENT_SECRET": "${SP_API_CLIENT_SECRET}",
+        "SP_API_REFRESH_TOKEN": "${SP_API_REFRESH_TOKEN}",
+        "SP_API_AWS_ACCESS_KEY": "${SP_API_AWS_ACCESS_KEY}",
+        "SP_API_AWS_SECRET_KEY": "${SP_API_AWS_SECRET_KEY}",
+        "SP_API_ROLE_ARN": "${SP_API_ROLE_ARN}",
+        "SP_API_MARKETPLACE_ID": "${SP_API_MARKETPLACE_ID}",
+        "SP_API_REGION": "${SP_API_REGION}"
+      }
     }
   }
 }
