@@ -119,9 +119,10 @@ import axios from 'axios';
       // Create canonical headers
       const canonicalHeaders = 
         `host:${host}\n` +
+        `user-agent:Amazon-SP-API-MCP-Server/1.0\n` +
         `x-amz-date:${datetime}\n`;
 
-      const signedHeaders = 'host;x-amz-date';
+      const signedHeaders = 'host;user-agent;x-amz-date';
       
       // Create payload hash
       const payloadHash = crypto.SHA256(payload).toString();
@@ -214,6 +215,7 @@ import axios from 'axios';
         const headers = {
           'x-amz-access-token': accessToken,
           'Content-Type': 'application/json',
+          'User-Agent': 'Amazon-SP-API-MCP-Server/1.0',
           ...awsHeaders
         };
 
@@ -240,15 +242,20 @@ import axios from 'axios';
         
         log('[DEBUG] SP-API request completed');
         log('[DEBUG] Response status:', response.status);
-        log('[DEBUG] Response data keys:', Object.keys(response.data || {}));
+        log('[DEBUG] Response headers:', Object.keys(response.headers || {}));
+        log('[DEBUG] Response content-type:', response.headers?.['content-type']);
         
-        // Handle HTTP error status codes
+        // Log response data for debugging 400 errors
         if (response.status >= 400) {
+          log('[DEBUG] Raw response data:', typeof response.data === 'string' ? response.data.substring(0, 500) : response.data);
+          
           const errorMessage = response.data?.errors?.[0]?.message || 
                               response.data?.message || 
                               `HTTP ${response.status}: ${response.statusText}`;
           throw new Error(`SP-API request failed: ${errorMessage}`);
         }
+        
+        log('[DEBUG] Response data keys:', Object.keys(response.data || {}));
         
         return response.data;
       } catch (error) {
