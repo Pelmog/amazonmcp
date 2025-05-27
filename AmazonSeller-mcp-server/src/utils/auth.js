@@ -44,7 +44,13 @@ import axios from 'axios';
         }, {
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded'
-          }
+          },
+          timeout: 15000, // 15 second timeout for auth requests
+          httpsAgent: new (await import('https')).Agent({
+            keepAlive: true,
+            timeout: 15000,
+            freeSocketTimeout: 10000
+          })
         });
 
         log('[DEBUG] Token request successful. Response status:', response.status);
@@ -172,17 +178,20 @@ import axios from 'axios';
     }
 
     /**
-     * Make a request to the SP-API
+     * Make a request to the SP-API with retry logic
      */
-    export async function makeSpApiRequest(method, path, data = null, queryParams = {}) {
+    export async function makeSpApiRequest(method, path, data = null, queryParams = {}, retryCount = 0) {
       log('[DEBUG] makeSpApiRequest() called');
       log('[DEBUG] Request parameters:', {
         method,
         path,
         hasData: !!data,
-        queryParamsCount: Object.keys(queryParams).length
+        queryParamsCount: Object.keys(queryParams).length,
+        retryCount
       });
 
+      const maxRetries = 3;
+      
       try {
         log('[DEBUG] Getting access token...');
         const accessToken = await getAccessToken();
@@ -212,24 +221,65 @@ import axios from 'axios';
           url,
           params: queryParams,
           data: data,
-          headers
+          headers,
+          timeout: 30000, // 30 second timeout
+          maxRedirects: 5,
+          validateStatus: (status) => status < 500, // Don't throw on 4xx errors
+          httpsAgent: new (await import('https')).Agent({
+            keepAlive: true,
+            timeout: 30000,
+            freeSocketTimeout: 15000,
+            maxSockets: 50,
+            maxFreeSockets: 10
+          })
         });
         
-        log('[DEBUG] SP-API request successful');
+        log('[DEBUG] SP-API request completed');
         log('[DEBUG] Response status:', response.status);
         log('[DEBUG] Response data keys:', Object.keys(response.data || {}));
         
+        // Handle HTTP error status codes
+        if (response.status >= 400) {
+          const errorMessage = response.data?.errors?.[0]?.message || 
+                              response.data?.message || 
+                              `HTTP ${response.status}: ${response.statusText}`;
+          throw new Error(`SP-API request failed: ${errorMessage}`);
+        }
+        
         return response.data;
       } catch (error) {
+        const isRetryableError = (
+          error.code === 'ECONNRESET' ||
+          error.code === 'ENOTFOUND' ||
+          error.code === 'ECONNREFUSED' ||
+          error.code === 'ETIMEDOUT' ||
+          error.message?.includes('socket disconnected') ||
+          error.message?.includes('timeout') ||
+          (error.response?.status >= 500)
+        );
+
         logError('[ERROR] SP-API request failed');
         logError('[ERROR] Error status:', error.response?.status);
         logError('[ERROR] Error data:', error.response?.data);
         logError('[ERROR] Error message:', error.message);
+        logError('[ERROR] Error code:', error.code);
+        logError('[ERROR] Is retryable:', isRetryableError);
         logError('[ERROR] Request config:', {
           method,
           url: `https://sellingpartnerapi-${process.env.SP_API_REGION || 'us-east-1'}.amazon.com${path}`,
-          hasData: !!data
+          hasData: !!data,
+          retryCount
         });
+
+        // Retry logic for transient errors
+        if (isRetryableError && retryCount < maxRetries) {
+          const delay = Math.pow(2, retryCount) * 1000; // Exponential backoff
+          log(`[DEBUG] Retrying request in ${delay}ms (attempt ${retryCount + 1}/${maxRetries})`);
+          
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return makeSpApiRequest(method, path, data, queryParams, retryCount + 1);
+        }
+        
         throw new Error(`SP-API request failed: ${error.response?.data?.errors?.[0]?.message || error.message}`);
       }
     }

@@ -35,6 +35,15 @@ Example:
 [2025-05-27T14:30:45.124Z] [DEBUG] [AUTH] getAccessToken() called
 ```
 
+## HTTP Connection Improvements
+
+The HTTP client has been enhanced with:
+
+- **Connection pooling**: Keep-alive connections to reduce latency
+- **Timeout configuration**: 30s for API requests, 15s for auth
+- **Retry logic**: Automatic retry with exponential backoff for transient errors
+- **Better error handling**: Detailed logging of connection issues
+
 ## Modules
 
 The logging system is implemented in `src/utils/logger.js` and imported throughout the codebase.
