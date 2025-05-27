@@ -39,18 +39,36 @@ node src/index.js
 ```
 
 ### NPM Scripts
+
+#### Regular Server (stdio mode)
 ```bash
-# Start with errors only (clean log)
+# Start with full debug logging (default)
+npm start
+
+# Start with errors only (cleanest log)
 npm run start:errors-only
 
 # Start with warnings and errors
 npm run start:quiet
+```
 
-# Regular start (all debug messages)
-npm start
+#### MCP Inspector (web debugging interface)
 
-# Inspect with errors only
-npm run inspect:errors-only
+The MCP Inspector provides a web-based interface for testing and debugging your MCP server. It automatically:
+- Starts your MCP server
+- Opens a web interface (usually on http://localhost:3000)
+- Allows interactive testing of tools and resources
+- Shows real-time MCP protocol communication
+
+```bash
+# Default inspector with full debug logging
+npm run inspect
+
+# Inspector with specific log levels
+npm run inspect:debug         # All messages (same as npm run inspect)
+npm run inspect:info          # Info, warnings, and errors
+npm run inspect:quiet         # Warnings and errors only  
+npm run inspect:errors-only   # Errors only (cleanest log)
 ```
 
 ## Viewing logs

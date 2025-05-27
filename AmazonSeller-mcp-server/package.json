@@ -13,6 +13,9 @@
         "start:quiet": "node src/index.js --log-level WARN",
         "dev": "node --watch src/index.js",
         "inspect": "npx -y @modelcontextprotocol/inspector node src/index.js",
+        "inspect:debug": "npx -y @modelcontextprotocol/inspector node src/index.js --log-level DEBUG",
+        "inspect:info": "npx -y @modelcontextprotocol/inspector node src/index.js --log-level INFO",
+        "inspect:quiet": "npx -y @modelcontextprotocol/inspector node src/index.js --log-level WARN",
         "inspect:errors-only": "npx -y @modelcontextprotocol/inspector node src/index.js --log-level ERROR"
       },
       "keywords": [
