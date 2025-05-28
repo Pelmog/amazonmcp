@@ -154,7 +154,7 @@ import axios from 'axios';
     /**
      * Generate AWS signature for SP-API requests using AWS SDK
      */
-    export async function generateAWSSignature(method, path, payload = '', queryParams = {}, awsCredentials) {
+    export async function generateAWSSignature(method, path, payload = '', queryParams = {}, awsCredentials, accessToken) {
       log('[DEBUG] generateAWSSignature() called (using AWS SDK)');
       log('[DEBUG] Request details:', {
         method,
@@ -187,14 +187,20 @@ import axios from 'axios';
           sha256: Sha256
         });
 
+        // Include ALL headers that will be sent in the request for signing
+        const signingHeaders = {
+          'host': host,
+          'x-amz-access-token': accessToken,
+          'user-agent': 'MySPAPIClient/1.0 (Language=JavaScript)',
+          'content-type': 'application/json'
+        };
+
         const request = {
           method,
           protocol: 'https:',
           hostname: host,
           path: path + (Object.keys(queryParams).length > 0 ? '?' + new URLSearchParams(queryParams).toString() : ''),
-          headers: {
-            'host': host
-          }
+          headers: signingHeaders
         };
 
         if (payload) {
@@ -205,7 +211,8 @@ import axios from 'axios';
           method: request.method,
           hostname: request.hostname,
           path: request.path,
-          hasBody: !!request.body
+          hasBody: !!request.body,
+          headersForSigning: Object.keys(signingHeaders)
         });
 
         const signedRequest = await signer.sign(request);
@@ -263,7 +270,7 @@ import axios from 'axios';
         log('[DEBUG] Payload length:', payload.length);
         
         log('[DEBUG] Generating AWS signature...');
-        const awsHeaders = await generateAWSSignature(method, path, payload, queryParams, awsCredentials);
+        const awsHeaders = await generateAWSSignature(method, path, payload, queryParams, awsCredentials, accessToken);
         
         const headers = {
           'x-amz-access-token': accessToken,
