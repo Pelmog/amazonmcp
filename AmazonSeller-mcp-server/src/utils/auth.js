@@ -190,16 +190,16 @@ import axios from 'axios';
 
       log('[DEBUG] Canonical query string:', canonicalQueryString);
 
-      // Create canonical headers - only include required headers for signing
-      let canonicalHeaders = 
-        `host:${host}\n` +
-        `x-amz-date:${datetime}\n`;
-      
-      let signedHeaders = 'host;x-amz-date';
+      // Create canonical headers - must be in alphabetical order
+      let canonicalHeaders = `host:${host}\n`;
+      let signedHeaders = 'host';
       
       if (awsCredentials?.sessionToken) {
-        canonicalHeaders += `x-amz-security-token:${awsCredentials.sessionToken}\n`;
+        canonicalHeaders += `x-amz-date:${datetime}\n` + `x-amz-security-token:${awsCredentials.sessionToken}\n`;
         signedHeaders = 'host;x-amz-date;x-amz-security-token';
+      } else {
+        canonicalHeaders += `x-amz-date:${datetime}\n`;
+        signedHeaders = 'host;x-amz-date';
       }
       
       // Create payload hash
@@ -216,6 +216,14 @@ import axios from 'axios';
         `${payloadHash}`;
       
       log('[DEBUG] Canonical request created');
+      log('[DEBUG] Canonical request details:', {
+        method,
+        canonicalUri,
+        canonicalQueryString: canonicalQueryString || '(empty)',
+        canonicalHeaders: canonicalHeaders.replace(/\n/g, '\\n'),
+        signedHeaders,
+        payloadHash
+      });
       
       // Create string to sign
       const algorithm = 'AWS4-HMAC-SHA256';
