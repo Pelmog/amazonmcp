@@ -187,9 +187,12 @@ import axios from 'axios';
           sha256: Sha256
         });
 
-        // Only sign the host header for API Gateway (like standard AWS API calls)
+        // Include ALL headers that will be sent, just like Python AWS4Auth does
         const signingHeaders = {
-          'host': host
+          'host': host,
+          'x-amz-access-token': accessToken,
+          'user-agent': 'MySPAPIClient/1.0 (Language=JavaScript)',
+          'content-type': 'application/json'
         };
 
         const request = {
