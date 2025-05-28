@@ -1,5 +1,6 @@
 import axios from 'axios';
     import crypto from 'crypto-js';
+    import { STSClient, AssumeRoleCommand } from '@aws-sdk/client-sts';
     import { log, logError } from './logger.js';
 
     // Cache for access tokens
@@ -7,6 +8,79 @@ import axios from 'axios';
       token: null,
       expiresAt: 0
     };
+
+    // Cache for AWS credentials from STS
+    let awsCredentialsCache = {
+      accessKeyId: null,
+      secretAccessKey: null,
+      sessionToken: null,
+      expiresAt: 0
+    };
+
+    /**
+     * Assume IAM role to get temporary AWS credentials
+     */
+    export async function getAwsCredentials() {
+      log('[DEBUG] getAwsCredentials() called');
+      
+      // Check if we have valid cached credentials
+      const now = Date.now();
+      log('[DEBUG] Current time:', now);
+      log('[DEBUG] AWS credentials cache status:', {
+        hasCredentials: !!awsCredentialsCache.accessKeyId,
+        expiresAt: awsCredentialsCache.expiresAt,
+        isValid: awsCredentialsCache.accessKeyId && awsCredentialsCache.expiresAt > now
+      });
+      
+      if (awsCredentialsCache.accessKeyId && awsCredentialsCache.expiresAt > now) {
+        log('[DEBUG] Using cached AWS credentials');
+        return awsCredentialsCache;
+      }
+
+      log('[DEBUG] Assuming IAM role for temporary credentials...');
+      log('[DEBUG] Environment check:', {
+        hasAccessKey: !!process.env.SP_API_AWS_ACCESS_KEY,
+        hasSecretKey: !!process.env.SP_API_AWS_SECRET_KEY,
+        hasRoleArn: !!process.env.SP_API_ROLE_ARN
+      });
+
+      try {
+        const stsClient = new STSClient({
+          region: process.env.SP_API_REGION || 'eu-west-1',
+          credentials: {
+            accessKeyId: process.env.SP_API_AWS_ACCESS_KEY,
+            secretAccessKey: process.env.SP_API_AWS_SECRET_KEY
+          }
+        });
+
+        const command = new AssumeRoleCommand({
+          RoleArn: process.env.SP_API_ROLE_ARN,
+          RoleSessionName: 'SPAPISession',
+          DurationSeconds: 3600 // 1 hour
+        });
+
+        const response = await stsClient.send(command);
+        const credentials = response.Credentials;
+
+        log('[DEBUG] STS role assumption successful');
+        log('[DEBUG] Credentials expire at:', credentials.Expiration);
+
+        // Cache the credentials
+        awsCredentialsCache = {
+          accessKeyId: credentials.AccessKeyId,
+          secretAccessKey: credentials.SecretAccessKey,
+          sessionToken: credentials.SessionToken,
+          expiresAt: credentials.Expiration.getTime() - 60000 // Subtract 1 minute for safety
+        };
+
+        log('[DEBUG] AWS credentials cached until:', new Date(awsCredentialsCache.expiresAt));
+        return awsCredentialsCache;
+      } catch (error) {
+        logError('[ERROR] Failed to assume IAM role:', error.message);
+        logError('[ERROR] Role ARN:', process.env.SP_API_ROLE_ARN);
+        throw new Error('Failed to assume IAM role for SP-API access');
+      }
+    }
 
     /**
      * Get an access token for SP-API
@@ -78,7 +152,7 @@ import axios from 'axios';
     /**
      * Generate AWS signature for SP-API requests
      */
-    export function generateAWSSignature(method, path, payload = '', queryParams = {}) {
+    export function generateAWSSignature(method, path, payload = '', queryParams = {}, awsCredentials) {
       log('[DEBUG] generateAWSSignature() called');
       log('[DEBUG] Request details:', {
         method,
@@ -116,13 +190,18 @@ import axios from 'axios';
 
       log('[DEBUG] Canonical query string:', canonicalQueryString);
 
-      // Create canonical headers
-      const canonicalHeaders = 
+      // Create canonical headers - include session token if present
+      let canonicalHeaders = 
         `host:${host}\n` +
         `user-agent:Amazon-SP-API-MCP-Server/1.0\n` +
         `x-amz-date:${datetime}\n`;
-
-      const signedHeaders = 'host;user-agent;x-amz-date';
+      
+      let signedHeaders = 'host;user-agent;x-amz-date';
+      
+      if (awsCredentials?.sessionToken) {
+        canonicalHeaders += `x-amz-security-token:${awsCredentials.sessionToken}\n`;
+        signedHeaders = 'host;user-agent;x-amz-date;x-amz-security-token';
+      }
       
       // Create payload hash
       const payloadHash = crypto.SHA256(payload).toString();
@@ -150,13 +229,14 @@ import axios from 'axios';
       
       log('[DEBUG] String to sign created with credential scope:', credentialScope);
       
-      // Calculate signature
-      log('[DEBUG] Environment check for AWS keys:', {
-        hasAccessKey: !!process.env.SP_API_AWS_ACCESS_KEY,
-        hasSecretKey: !!process.env.SP_API_AWS_SECRET_KEY
+      // Calculate signature using temporary credentials
+      log('[DEBUG] AWS credentials check:', {
+        hasAccessKeyId: !!awsCredentials?.accessKeyId,
+        hasSecretAccessKey: !!awsCredentials?.secretAccessKey,
+        hasSessionToken: !!awsCredentials?.sessionToken
       });
 
-      const kDate = crypto.HmacSHA256(date, `AWS4${process.env.SP_API_AWS_SECRET_KEY}`);
+      const kDate = crypto.HmacSHA256(date, `AWS4${awsCredentials.secretAccessKey}`);
       const kRegion = crypto.HmacSHA256(region, kDate);
       const kService = crypto.HmacSHA256(service, kRegion);
       const kSigning = crypto.HmacSHA256('aws4_request', kService);
@@ -167,7 +247,7 @@ import axios from 'axios';
       // Create authorization header
       const authorizationHeader = 
         `${algorithm} ` +
-        `Credential=${process.env.SP_API_AWS_ACCESS_KEY}/${credentialScope}, ` +
+        `Credential=${awsCredentials.accessKeyId}/${credentialScope}, ` +
         `SignedHeaders=${signedHeaders}, ` +
         `Signature=${signature}`;
       
@@ -175,6 +255,11 @@ import axios from 'axios';
         'x-amz-date': datetime,
         'Authorization': authorizationHeader
       };
+      
+      // Add session token header if present
+      if (awsCredentials?.sessionToken) {
+        headers['x-amz-security-token'] = awsCredentials.sessionToken;
+      }
 
       log('[DEBUG] AWS signature headers generated');
       return headers;
@@ -199,6 +284,9 @@ import axios from 'axios';
         log('[DEBUG] Getting access token...');
         const accessToken = await getAccessToken();
         
+        log('[DEBUG] Getting AWS credentials from STS...');
+        const awsCredentials = await getAwsCredentials();
+        
         const region = process.env.SP_API_REGION || 'us-east-1';
         // Map AWS regions to SP-API endpoint regions
         const endpointRegion = region === 'eu-west-1' ? 'eu' : region === 'us-east-1' ? 'na' : region;
@@ -210,7 +298,7 @@ import axios from 'axios';
         log('[DEBUG] Payload length:', payload.length);
         
         log('[DEBUG] Generating AWS signature...');
-        const awsHeaders = generateAWSSignature(method, path, payload, queryParams);
+        const awsHeaders = generateAWSSignature(method, path, payload, queryParams, awsCredentials);
         
         const headers = {
           'x-amz-access-token': accessToken,

@@ -5,30 +5,31 @@
       "type": "module",
       "main": "src/index.js",
       "bin": {
-        "amazon-sp-api-mcp": "src/index.js"
+            "amazon-sp-api-mcp": "src/index.js"
       },
       "scripts": {
-        "start": "node src/index.js",
-        "start:errors-only": "node src/index.js --log-level ERROR",
-        "start:quiet": "node src/index.js --log-level WARN",
-        "dev": "node --watch src/index.js",
-        "inspect": "npx -y @modelcontextprotocol/inspector node src/index.js",
-        "inspect:debug": "npx -y @modelcontextprotocol/inspector node src/index.js --log-level DEBUG",
-        "inspect:info": "npx -y @modelcontextprotocol/inspector node src/index.js --log-level INFO",
-        "inspect:quiet": "npx -y @modelcontextprotocol/inspector node src/index.js --log-level WARN",
-        "inspect:errors-only": "npx -y @modelcontextprotocol/inspector node src/index.js --log-level ERROR"
+            "start": "node src/index.js",
+            "start:errors-only": "node src/index.js --log-level ERROR",
+            "start:quiet": "node src/index.js --log-level WARN",
+            "dev": "node --watch src/index.js",
+            "inspect": "npx -y @modelcontextprotocol/inspector node src/index.js",
+            "inspect:debug": "npx -y @modelcontextprotocol/inspector node src/index.js --log-level DEBUG",
+            "inspect:info": "npx -y @modelcontextprotocol/inspector node src/index.js --log-level INFO",
+            "inspect:quiet": "npx -y @modelcontextprotocol/inspector node src/index.js --log-level WARN",
+            "inspect:errors-only": "npx -y @modelcontextprotocol/inspector node src/index.js --log-level ERROR"
       },
       "keywords": [
-        "amazon",
-        "sp-api",
-        "mcp",
-        "selling-partner"
+            "amazon",
+            "sp-api",
+            "mcp",
+            "selling-partner"
       ],
       "dependencies": {
-        "@modelcontextprotocol/sdk": "^1.0.0",
-        "axios": "^1.6.2",
-        "crypto-js": "^4.1.1",
-        "dotenv": "^16.3.1",
-        "zod": "^3.22.4"
+            "@aws-sdk/client-sts": "^3.817.0",
+            "@modelcontextprotocol/sdk": "^1.0.0",
+            "axios": "^1.6.2",
+            "crypto-js": "^4.1.1",
+            "dotenv": "^16.3.1",
+            "zod": "^3.22.4"
       }
-    }
+}
