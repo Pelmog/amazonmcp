@@ -1,6 +1,8 @@
 import axios from 'axios';
     import crypto from 'crypto-js';
     import { STSClient, AssumeRoleCommand } from '@aws-sdk/client-sts';
+    import { SignatureV4 } from '@aws-sdk/signature-v4';
+    import { Sha256 } from '@aws-crypto/sha256-js';
     import { log, logError } from './logger.js';
 
     // Cache for access tokens
@@ -150,10 +152,10 @@ import axios from 'axios';
     }
 
     /**
-     * Generate AWS signature for SP-API requests
+     * Generate AWS signature for SP-API requests using AWS SDK
      */
-    export function generateAWSSignature(method, path, payload = '', queryParams = {}, awsCredentials) {
-      log('[DEBUG] generateAWSSignature() called');
+    export async function generateAWSSignature(method, path, payload = '', queryParams = {}, awsCredentials) {
+      log('[DEBUG] generateAWSSignature() called (using AWS SDK)');
       log('[DEBUG] Request details:', {
         method,
         path,
@@ -166,110 +168,66 @@ import axios from 'axios';
       // Map AWS regions to SP-API endpoint regions
       const endpointRegion = region === 'eu-west-1' ? 'eu' : region === 'us-east-1' ? 'na' : region;
       const host = `sellingpartnerapi-${endpointRegion}.amazon.com`;
-      const datetime = new Date().toISOString().replace(/[:-]|\.\d{3}/g, '');
-      const date = datetime.substring(0, 8);
 
       log('[DEBUG] AWS signature parameters:', {
         region,
         service,
-        host,
-        datetime,
-        date
+        host
       });
 
-      // Create canonical request
-      const canonicalUri = path;
-      
-      // Sort and encode query parameters
-      const canonicalQueryString = Object.keys(queryParams)
-        .sort()
-        .map(key => {
-          return `${encodeURIComponent(key)}=${encodeURIComponent(queryParams[key])}`;
-        })
-        .join('&');
+      try {
+        const signer = new SignatureV4({
+          service,
+          region,
+          credentials: {
+            accessKeyId: awsCredentials.accessKeyId,
+            secretAccessKey: awsCredentials.secretAccessKey,
+            sessionToken: awsCredentials.sessionToken
+          },
+          sha256: Sha256
+        });
 
-      log('[DEBUG] Canonical query string:', canonicalQueryString);
+        const request = {
+          method,
+          protocol: 'https:',
+          hostname: host,
+          path: path + (Object.keys(queryParams).length > 0 ? '?' + new URLSearchParams(queryParams).toString() : ''),
+          headers: {
+            'host': host
+          }
+        };
 
-      // Create canonical headers - must be in alphabetical order
-      let canonicalHeaders = `host:${host}\n`;
-      let signedHeaders = 'host';
-      
-      if (awsCredentials?.sessionToken) {
-        canonicalHeaders += `x-amz-date:${datetime}\n` + `x-amz-security-token:${awsCredentials.sessionToken}\n`;
-        signedHeaders = 'host;x-amz-date;x-amz-security-token';
-      } else {
-        canonicalHeaders += `x-amz-date:${datetime}\n`;
-        signedHeaders = 'host;x-amz-date';
+        if (payload) {
+          request.body = payload;
+        }
+
+        log('[DEBUG] Request object for signing:', {
+          method: request.method,
+          hostname: request.hostname,
+          path: request.path,
+          hasBody: !!request.body
+        });
+
+        const signedRequest = await signer.sign(request);
+        
+        log('[DEBUG] AWS SDK signature generated successfully');
+        
+        // Extract the headers we need
+        const awsHeaders = {
+          'x-amz-date': signedRequest.headers['x-amz-date'],
+          'Authorization': signedRequest.headers['authorization']
+        };
+
+        if (signedRequest.headers['x-amz-security-token']) {
+          awsHeaders['x-amz-security-token'] = signedRequest.headers['x-amz-security-token'];
+        }
+
+        log('[DEBUG] AWS signature headers generated');
+        return awsHeaders;
+      } catch (error) {
+        logError('[ERROR] Failed to generate AWS signature:', error.message);
+        throw new Error('Failed to generate AWS signature');
       }
-      
-      // Create payload hash
-      const payloadHash = crypto.SHA256(payload).toString();
-      log('[DEBUG] Payload hash:', payloadHash);
-      
-      // Combine elements to create canonical request
-      const canonicalRequest = 
-        `${method}\n` +
-        `${canonicalUri}\n` +
-        `${canonicalQueryString}\n` +
-        `${canonicalHeaders}\n` +
-        `${signedHeaders}\n` +
-        `${payloadHash}`;
-      
-      log('[DEBUG] Canonical request created');
-      log('[DEBUG] Canonical request details:', {
-        method,
-        canonicalUri,
-        canonicalQueryString: canonicalQueryString || '(empty)',
-        canonicalHeaders: canonicalHeaders.replace(/\n/g, '\\n'),
-        signedHeaders,
-        payloadHash
-      });
-      
-      // Create string to sign
-      const algorithm = 'AWS4-HMAC-SHA256';
-      const credentialScope = `${date}/${region}/${service}/aws4_request`;
-      const stringToSign = 
-        `${algorithm}\n` +
-        `${datetime}\n` +
-        `${credentialScope}\n` +
-        `${crypto.SHA256(canonicalRequest).toString()}`;
-      
-      log('[DEBUG] String to sign created with credential scope:', credentialScope);
-      
-      // Calculate signature using temporary credentials
-      log('[DEBUG] AWS credentials check:', {
-        hasAccessKeyId: !!awsCredentials?.accessKeyId,
-        hasSecretAccessKey: !!awsCredentials?.secretAccessKey,
-        hasSessionToken: !!awsCredentials?.sessionToken
-      });
-
-      const kDate = crypto.HmacSHA256(date, `AWS4${awsCredentials.secretAccessKey}`);
-      const kRegion = crypto.HmacSHA256(region, kDate);
-      const kService = crypto.HmacSHA256(service, kRegion);
-      const kSigning = crypto.HmacSHA256('aws4_request', kService);
-      const signature = crypto.HmacSHA256(stringToSign, kSigning).toString();
-      
-      log('[DEBUG] AWS signature generated successfully');
-      
-      // Create authorization header
-      const authorizationHeader = 
-        `${algorithm} ` +
-        `Credential=${awsCredentials.accessKeyId}/${credentialScope}, ` +
-        `SignedHeaders=${signedHeaders}, ` +
-        `Signature=${signature}`;
-      
-      const headers = {
-        'x-amz-date': datetime,
-        'Authorization': authorizationHeader
-      };
-      
-      // Add session token header if present
-      if (awsCredentials?.sessionToken) {
-        headers['x-amz-security-token'] = awsCredentials.sessionToken;
-      }
-
-      log('[DEBUG] AWS signature headers generated');
-      return headers;
     }
 
     /**
@@ -305,7 +263,7 @@ import axios from 'axios';
         log('[DEBUG] Payload length:', payload.length);
         
         log('[DEBUG] Generating AWS signature...');
-        const awsHeaders = generateAWSSignature(method, path, payload, queryParams, awsCredentials);
+        const awsHeaders = await generateAWSSignature(method, path, payload, queryParams, awsCredentials);
         
         const headers = {
           'x-amz-access-token': accessToken,
