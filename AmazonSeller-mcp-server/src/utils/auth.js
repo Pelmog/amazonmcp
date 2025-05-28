@@ -190,17 +190,16 @@ import axios from 'axios';
 
       log('[DEBUG] Canonical query string:', canonicalQueryString);
 
-      // Create canonical headers - include session token if present
+      // Create canonical headers - only include required headers for signing
       let canonicalHeaders = 
         `host:${host}\n` +
-        `user-agent:Amazon-SP-API-MCP-Server/1.0\n` +
         `x-amz-date:${datetime}\n`;
       
-      let signedHeaders = 'host;user-agent;x-amz-date';
+      let signedHeaders = 'host;x-amz-date';
       
       if (awsCredentials?.sessionToken) {
         canonicalHeaders += `x-amz-security-token:${awsCredentials.sessionToken}\n`;
-        signedHeaders = 'host;user-agent;x-amz-date;x-amz-security-token';
+        signedHeaders = 'host;x-amz-date;x-amz-security-token';
       }
       
       // Create payload hash
@@ -302,12 +301,20 @@ import axios from 'axios';
         
         const headers = {
           'x-amz-access-token': accessToken,
-          'Content-Type': 'application/json',
-          'User-Agent': 'Amazon-SP-API-MCP-Server/1.0',
+          'user-agent': 'MySPAPIClient/1.0 (Language=JavaScript)',
+          'content-type': 'application/json',
           ...awsHeaders
         };
 
         log('[DEBUG] Request headers prepared (access token masked)');
+        log('[DEBUG] Request headers (for debugging):', {
+          'x-amz-access-token': accessToken ? accessToken.substring(0, 10) + '...' : 'none',
+          'user-agent': headers['user-agent'],
+          'content-type': headers['content-type'],
+          'x-amz-date': headers['x-amz-date'],
+          'x-amz-security-token': headers['x-amz-security-token'] ? headers['x-amz-security-token'].substring(0, 20) + '...' : 'none',
+          'Authorization': headers['Authorization'] ? headers['Authorization'].substring(0, 50) + '...' : 'none'
+        });
         log('[DEBUG] Making axios request...');
         
         const response = await axios({
